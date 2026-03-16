@@ -1,0 +1,18 @@
+export const QUERY_KEYS = {
+  ME: ['auth', 'me'] as const,
+  WORKSPACES: ['workspaces'] as const,
+  WORKSPACE_MEMBERS: (wsId: string) => ['workspaces', wsId, 'members'] as const,
+  MEMBERS: (wsId: string) => ['workspaces', wsId, 'members'] as const,
+  PROJECTS: (wsId: string) => ['workspaces', wsId, 'projects'] as const,
+  KANBAN: (pId: string) => ['projects', pId, 'kanban'] as const,
+  ISSUES: (pId: string) => ['projects', pId, 'issues'] as const,
+  ISSUE: (id: string) => ['issues', id] as const,
+  ISSUE_ACTIVITY: (issueId: string) => ['issues', issueId, 'activity'] as const,
+  COMMENTS: (issueId: string) => ['issues', issueId, 'comments'] as const,
+  ACTIVITY: (issueId: string) => ['issues', issueId, 'activity'] as const,
+  NOTIFICATIONS: ['notifications'] as const,
+  ANALYTICS: (pId: string) => ['projects', pId, 'analytics'] as const,
+  BOARD: (pId: string) => ['projects', pId, 'board'] as const,
+  USER_PROFILE: ['user', 'profile'] as const,
+  PROJECT_MEMBERS: (pId: string) => ['projects', pId, 'members'] as const,
+} as const
