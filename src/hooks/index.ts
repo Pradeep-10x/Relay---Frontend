@@ -109,6 +109,15 @@ export function useRemoveWorkspaceMember() {
   })
 }
 
+export function useChangeMemberRole() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: { wsId: string; userId: string; role: WorkspaceRole }) => workspaceService.changeMemberRole(data.wsId, data.userId, data.role),
+    onSuccess: (_d, v) => { qc.invalidateQueries({ queryKey: QUERY_KEYS.WORKSPACE_MEMBERS(v.wsId) }); toast.success('Role updated') },
+    onError: (err: any) => toast.error(err.response?.data?.message || 'Failed to update role'),
+  })
+}
+
 export function useGenerateInvite() {
   return useMutation({
     mutationFn: (data: { wsId: string; role?: WorkspaceRole }) => workspaceService.generateInvite(data.wsId, data.role),

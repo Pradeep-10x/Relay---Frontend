@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Folder, Rocket, Clock, MessageSquare, CheckCircle2, Paperclip, AlertTriangle, Flag, Calendar, X, ArrowUpRight } from 'lucide-react'
-import { useWorkspaces, useProjects } from '@/hooks'
+import { useWorkspaces, useProjects, useWorkspaceMembers } from '@/hooks'
 import { useUIStore } from '@/store/ui-store'
 import { useAuthStore } from '@/store/auth-store'
 import { getInitials, getAvatarColor, formatRelative } from '@/lib/utils'
@@ -51,6 +51,18 @@ export default function HomeDashboard() {
   const currentWs = workspaces.find(w => w.id === wsId)
   const { data: projects = [] } = useProjects(wsId)
   const navigate = useNavigate()
+
+  // Check if user is workspace OWNER → redirect to workspace page
+  const { data: wsMembers = [] } = useWorkspaceMembers(wsId)
+  useEffect(() => {
+    if (user && wsId && wsMembers.length > 0) {
+      const myMembership = wsMembers.find(m => m.userId === user.id)
+      if (myMembership?.role === 'OWNER') {
+        navigate(`/workspace/${wsId}`, { replace: true })
+      }
+    }
+  }, [user, wsId, wsMembers, navigate])
+
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'in_progress' | 'resolved'>('all')
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null)
   const [showProjectsDialog, setShowProjectsDialog] = useState(false)
@@ -158,7 +170,7 @@ export default function HomeDashboard() {
                 style={{
                   padding: '20px 24px',
                   borderLeft: `3px solid ${accent}`,
-                  borderRadius: 6,
+                  borderRadius: 4,
                   cursor: idx === 0 ? 'pointer' : 'default',
                 }}
                 onClick={() => { if (idx === 0) setShowProjectsDialog(true) }}
@@ -167,7 +179,7 @@ export default function HomeDashboard() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                   <p style={{ fontSize: 12, color: 'var(--text-2)', fontWeight: 600 }}>{label}</p>
                   <div style={{
-                    width: 36, height: 36, borderRadius: 6, background: accentBg,
+                    width: 36, height: 36, borderRadius: 4, background: accentBg,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
                     <Icon size={18} color={accent} />
@@ -190,50 +202,68 @@ export default function HomeDashboard() {
         {/* ── Charts Row: Issue Distribution + Weekly Productivity ── */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 32 }}>
 
-          {/* Issue Distribution — horizontal bars */}
-          <div className="card" style={{ padding: 24 }}>
-            <h4 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-0)', marginBottom: 20 }}>Issue Distribution</h4>
+          {/* Issue Distribution — horizontal bars */}  
+          <div className="card" style={{ padding: 24, borderRadius: 4 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+              <h4 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-0)' }}>Issue Distribution</h4>
+              <span style={{
+                fontSize: 11, fontWeight: 600, color: 'var(--text-2)',
+                background: 'var(--surface-3)', padding: '3px 10px', borderRadius: 4,
+              }}>
+                {myIssues.length} total
+              </span>
+            </div>
             {(() => {
-              const statusGroups = myIssues.reduce((acc, i) => {
-                const name = i.state?.name?.toUpperCase() || 'TODO'
-                if (name === 'DONE' || name === 'CANCELLED') acc.done++
-                else if (name === 'IN_PROGRESS' || name === 'IN_REVIEW' || name === 'REVIEW') acc.progress++
-                else if (name === 'BLOCKED') acc.blocked++
-                else acc.todo++
-                return acc
-              }, { todo: 0, progress: 0, review: 0, done: 0, blocked: 0 })
-
-              // Count reviews separately
+              const todoCount = myIssues.filter(i => {
+                const n = i.state?.name?.toUpperCase() || 'TODO'
+                return n !== 'DONE' && n !== 'CANCELLED' && n !== 'IN_PROGRESS' && n !== 'IN_REVIEW' && n !== 'REVIEW' && n !== 'BLOCKED'
+              }).length
+              const inProgressCount = myIssues.filter(i => {
+                const n = i.state?.name?.toUpperCase()
+                return n === 'IN_PROGRESS'
+              }).length
               const reviewCount = myIssues.filter(i => {
                 const n = i.state?.name?.toUpperCase()
                 return n === 'IN_REVIEW' || n === 'REVIEW'
               }).length
+              const doneCount = myIssues.filter(i => {
+                const n = i.state?.name?.toUpperCase()
+                return n === 'DONE' || n === 'CANCELLED'
+              }).length
 
               const bars = [
-                { label: 'TODO', value: statusGroups.todo, color: '#3b82f6' },
-                { label: 'PROGRESS', value: statusGroups.progress - reviewCount, color: '#2563eb' },
-                { label: 'REVIEW', value: reviewCount, color: '#f59e0b' },
-                { label: 'DONE', value: statusGroups.done, color: '#10b981' },
-              ].filter(b => b.value >= 0)
+                { label: 'To Do',       value: todoCount, color: '#3b82f6' },
+                { label: 'In Progress', value: inProgressCount, color: '#8b5cf6' },
+                { label: 'Review',      value: reviewCount, color: '#f59e0b' },
+                { label: 'Done',        value: doneCount, color: '#10b981' },
+              ]
 
-              const total = myIssues.length || 1
               const maxVal = Math.max(...bars.map(b => b.value), 1)
+              const total = myIssues.length || 1
 
               return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                   {bars.map(bar => {
-                    const pct = Math.round((bar.value / total) * 100)
+                    const pct = total > 0 ? Math.round((bar.value / total) * 100) : 0
                     return (
-                      <div key={bar.label} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: bar.color, width: 72, textTransform: 'uppercase', letterSpacing: '0.02em', flexShrink: 0 }}>{bar.label}</span>
-                        <div style={{ flex: 1, height: 10, borderRadius: 9999, background: 'var(--surface-4)', overflow: 'hidden' }}>
+                      <div key={bar.label}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{ width: 8, height: 8, borderRadius: 2, background: bar.color, flexShrink: 0 }} />
+                            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-1)' }}>{bar.label}</span>
+                          </div>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-0)' }}>
+                            {bar.value} <span style={{ color: 'var(--text-3)', fontWeight: 500 }}>({pct}%)</span>
+                          </span>
+                        </div>
+                        <div style={{ height: 6, borderRadius:  4, background: 'var(--surface-4)', overflow: 'hidden' }}>
                           <div style={{
-                            width: `${maxVal > 0 ? (bar.value / maxVal) * 100 : 0}%`,
-                            height: '100%', borderRadius: 9999, background: bar.color,
-                            transition: 'width 0.5s ease',
+                            width: `${total > 0 ? (bar.value / total) * 100 : 0}%`,
+                            height: '100%', borderRadius: 4, background: bar.color,
+                            transition: 'width 0.6s cubic-bezier(.4,0,.2,1)',
+                            minWidth: bar.value > 0 ? 4 : 0,
                           }} />
                         </div>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-1)', width: 36, textAlign: 'right' }}>{pct}%</span>
                       </div>
                     )
                   })}
@@ -242,84 +272,132 @@ export default function HomeDashboard() {
             })()}
           </div>
 
-          {/* Weekly Productivity — vertical bar chart */}
-          <div className="card" style={{ padding: 24 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
-              <h4 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-0)' }}>Weekly Productivity</h4>
+          {/* Project Completion — Radar Chart */}
+          <div className="card" style={{ padding: 24, borderRadius: 4, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h4 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-0)', margin: 0 }}>Project Completion</h4>
+              <span style={{
+                fontSize: 11, fontWeight: 600, color: 'var(--accent)',
+                background: 'rgba(17,82,212,0.1)', padding: '3px 10px', borderRadius: 4,
+              }}>
+                Active Projects
+              </span>
+            </div>
+            
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', minHeight: 240 }}>
               {(() => {
-                // Calculate week-over-week change
-                const now = new Date()
-                const startOfThisWeek = new Date(now)
-                startOfThisWeek.setDate(now.getDate() - now.getDay())
-                startOfThisWeek.setHours(0, 0, 0, 0)
-                const startOfLastWeek = new Date(startOfThisWeek)
-                startOfLastWeek.setDate(startOfLastWeek.getDate() - 7)
+                // Get projects with at least one issue assigned to user
+                const projectStats = projects.slice(0, 6).map(p => {
+                  const pIssues = myIssues.filter(i => i.projectId === p.id);
+                  const done = pIssues.filter(i => {
+                    const n = i.state?.name?.toUpperCase();
+                    return n === 'DONE' || n === 'CANCELLED';
+                  }).length;
+                  const total = pIssues.length || 1; // avoid division by zero
+                  const rate = pIssues.length === 0 ? 0 : Math.round((done / total) * 100);
+                  return { name: p.name, rate, total: pIssues.length };
+                }).filter(p => p.total > 0);
 
-                const thisWeekResolved = myResolved.filter(i => i.updatedAt && new Date(i.updatedAt) >= startOfThisWeek).length
-                const lastWeekResolved = myResolved.filter(i => {
-                  if (!i.updatedAt) return false
-                  const d = new Date(i.updatedAt)
-                  return d >= startOfLastWeek && d < startOfThisWeek
-                }).length
+                if (projectStats.length < 3) {
+                  return (
+                    <div style={{ textAlign: 'center', color: 'var(--text-3)' }}>
+                      <p style={{ fontSize: 13 }}>Not enough project data yet.</p>
+                      <p style={{ fontSize: 11, marginTop: 4 }}>Need at least 3 active projects.</p>
+                    </div>
+                  );
+                }
 
-                const change = lastWeekResolved > 0 ? Math.round(((thisWeekResolved - lastWeekResolved) / lastWeekResolved) * 100) : (thisWeekResolved > 0 ? 100 : 0)
-                const isPositive = change >= 0
-                return change !== 0 ? (
-                  <span style={{ fontSize: 11, fontWeight: 600, color: isPositive ? '#10b981' : '#ef4444' }}>
-                    {isPositive ? '↑' : '↓'}{Math.abs(change)}% vs last week
-                  </span>
-                ) : null
+                // Radar Chart SVG Construction
+                const size = 200;
+                const center = size / 2;
+                const radius = (size / 2) - 30; // Leave room for labels
+                const sides = projectStats.length;
+                const angleStep = (Math.PI * 2) / sides;
+                
+                // Calculate polygon points
+                const getPoint = (val: number, index: number) => {
+                  const angle = (index * angleStep) - (Math.PI / 2); // Start at top
+                  const r = (val / 100) * radius;
+                  return {
+                    x: center + (r * Math.cos(angle)),
+                    y: center + (r * Math.sin(angle))
+                  };
+                };
+
+                // Background grid (concentric polygons)
+                const gridTicks = [25, 50, 75, 100];
+                
+                // Data polygon
+                const dataPoints = projectStats.map((p, i) => getPoint(p.rate, i));
+                const dataPathD = dataPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x},${p.y}`).join(' ') + ' Z';
+
+                return (
+                  <div style={{ width: '100%', maxWidth: 320, position: 'relative' }}>
+                    <svg width="100%" viewBox={`0 0 ${size} ${size}`} style={{ overflow: 'visible', filter: 'drop-shadow(0 4px 12px rgba(17,82,212,0.15))' }}>
+                      <defs>
+                        <radialGradient id="radarGradient" cx="50%" cy="50%" r="50%">
+                          <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.6" />
+                          <stop offset="100%" stopColor="var(--accent)" stopOpacity="0.2" />
+                        </radialGradient>
+                      </defs>
+
+                      {/* Web Grid */}
+                      {gridTicks.map(tick => {
+                        const pts = Array.from({ length: sides }).map((_, i) => getPoint(tick, i));
+                        const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x},${p.y}`).join(' ') + ' Z';
+                        return (
+                          <path key={`grid-${tick}`} d={d} fill="none" stroke="var(--border-0)" strokeWidth="1" strokeDasharray={tick % 50 === 0 ? "none" : "2,2"} />
+                        );
+                      })}
+
+                      {/* Axis Lines */}
+                      {Array.from({ length: sides }).map((_, i) => {
+                        const end = getPoint(100, i);
+                        return (
+                          <line key={`axis-${i}`} x1={center} y1={center} x2={end.x} y2={end.y} stroke="var(--border-0)" strokeWidth="1" />
+                        );
+                      })}
+
+                      {/* Data Polygon */}
+                      <path 
+                        d={dataPathD} 
+                        fill="url(#radarGradient)" 
+                        stroke="var(--accent)" 
+                        strokeWidth="2" 
+                        strokeLinejoin="round"
+                        style={{ animation: 'zoomIn 0.8s cubic-bezier(0.1, 0.8, 0.2, 1) forwards', transformOrigin: 'center' }}
+                      />
+
+                      {/* Data Dots */}
+                      {dataPoints.map((p, i) => (
+                        <circle 
+                          key={`dot-${i}`} cx={p.x} cy={p.y} r="4" fill="var(--surface-1)" stroke="var(--accent)" strokeWidth="2"
+                          style={{ animation: 'fadeIn 0.4s ease forwards', animationDelay: `${0.3 + (i * 0.1)}s`, opacity: 0 }}
+                        />
+                      ))}
+
+                      {/* Labels */}
+                      {projectStats.map((p, i) => {
+                        // Place label slightly outside the 100% radius
+                        const labelPos = getPoint(125, i);
+                        const isTopOrBottom = Math.abs(labelPos.x - center) < 10;
+                        const anchor = isTopOrBottom ? "middle" : (labelPos.x > center ? "start" : "end");
+                        return (
+                          <g key={`label-${i}`} style={{ animation: 'fadeIn 0.5s ease forwards 0.8s', opacity: 0 }}>
+                            <text x={labelPos.x} y={labelPos.y} fontSize="9" fontWeight="700" fill="var(--text-1)" textAnchor={anchor} alignmentBaseline="middle">
+                              {p.name.length > 12 ? p.name.substring(0, 10) + '...' : p.name}
+                            </text>
+                            <text x={labelPos.x} y={labelPos.y + 12} fontSize="9" fontWeight="800" fill="var(--accent)" textAnchor={anchor} alignmentBaseline="middle">
+                              {p.rate}%
+                            </text>
+                          </g>
+                        );
+                      })}
+                    </svg>
+                  </div>
+                );
               })()}
             </div>
-            {(() => {
-              const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-              const now = new Date()
-              const dayOfWeek = now.getDay()
-
-              // Count resolved issues per day of the current week
-              const dayCounts = days.map((_, idx) => {
-                const mondayOffset = (dayOfWeek === 0 ? -6 : 1 - dayOfWeek)
-                const dayDate = new Date(now)
-                dayDate.setDate(now.getDate() + mondayOffset + idx)
-                dayDate.setHours(0, 0, 0, 0)
-                const nextDay = new Date(dayDate)
-                nextDay.setDate(dayDate.getDate() + 1)
-
-                return allIssues.filter(i => {
-                  if (!i.updatedAt) return false
-                  const n = i.state?.name?.toUpperCase()
-                  if (n !== 'DONE' && n !== 'CANCELLED') return false
-                  const d = new Date(i.updatedAt)
-                  return d >= dayDate && d < nextDay
-                }).length
-              })
-
-              const maxCount = Math.max(...dayCounts, 1)
-              const barHeight = 100
-
-              return (
-                <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8, height: barHeight + 24 }}>
-                  {days.map((day, idx) => {
-                    const h = dayCounts[idx] > 0 ? (dayCounts[idx] / maxCount) * barHeight : 6
-                    const isToday = idx === (dayOfWeek === 0 ? 6 : dayOfWeek - 1)
-                    return (
-                      <div key={day} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flex: 1 }}>
-                        <div
-                          style={{
-                            width: '100%', maxWidth: 38, height: h, borderRadius: 4,
-                            background: isToday ? '#3b82f6' : 'var(--accent-subtle)',
-                            transition: 'height 0.5s ease',
-                            position: 'relative',
-                          }}
-                          title={`${dayCounts[idx]} resolved`}
-                        />
-                        <span style={{ fontSize: 11, fontWeight: isToday ? 700 : 500, color: isToday ? 'var(--text-0)' : 'var(--text-3)' }}>{day}</span>
-                      </div>
-                    )
-                  })}
-                </div>
-              )
-            })()}
           </div>
         </div>
 
@@ -359,7 +437,7 @@ export default function HomeDashboard() {
           </div>
 
           {/* Issue Table */}
-          <div className="card" style={{ overflow: 'hidden', borderRadius: 6 }}>
+          <div className="card" style={{ overflow: 'hidden', borderRadius: 4 }}>
             <div style={{ maxHeight: 10 * 60, overflowY: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                 <thead style={{ position: 'sticky', top: 0, zIndex: 2 }}>
@@ -443,7 +521,7 @@ export default function HomeDashboard() {
             onClick={e => e.stopPropagation()}
             style={{
               background: 'var(--surface-2)', border: '1px solid var(--border-1)',
-              borderRadius: 8, width: '100%', maxWidth: 580,
+              borderRadius: 4, width: '100%', maxWidth: 580,
               maxHeight: '70vh', display: 'flex', flexDirection: 'column',
               boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
               animation: 'slideUp 0.2s ease',
@@ -460,7 +538,7 @@ export default function HomeDashboard() {
               </div>
               <button
                 onClick={() => setShowProjectsDialog(false)}
-                style={{ background: 'var(--surface-4)', border: 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-2)' }}
+                style={{ background: 'var(--surface-4)', border: 'none', borderRadius: 4, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-2)' }}
               >
                 <X size={16} />
               </button>
@@ -495,7 +573,7 @@ export default function HomeDashboard() {
                         key={p.id}
                         onClick={() => { setShowProjectsDialog(false); navigate(`/workspace/${wsId}/project/${p.id}/board`) }}
                         style={{
-                          padding: '14px 16px', borderRadius: 6, cursor: 'pointer',
+                          padding: '14px 16px', borderRadius: 4, cursor: 'pointer',
                           display: 'flex', alignItems: 'center', gap: 14,
                           transition: 'background 0.12s',
                           border: '1px solid transparent',
@@ -505,7 +583,7 @@ export default function HomeDashboard() {
                       >
                         {/* Avatar */}
                         <div style={{
-                          width: 40, height: 40, borderRadius: 6, background: color, flexShrink: 0,
+                          width: 40, height: 40, borderRadius: 4, background: color, flexShrink: 0,
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           color: '#fff', fontWeight: 700, fontSize: 16,
                         }}>

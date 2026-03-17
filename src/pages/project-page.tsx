@@ -92,12 +92,24 @@ export default function ProjectPage() {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Project header */}
-      <div className="flex items-center justify-between px-6 py-3 border-b" style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-secondary)' }}>
-        <div className="flex items-center gap-3">
-          <div className="avatar avatar-md" style={{ background: 'var(--accent-subtle)', color: 'var(--accent-primary)', fontWeight: 700 }}>{project?.key?.slice(0,2) || '??'}</div>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '16px 24px',
+        borderBottom: '1px solid var(--border-0)',
+        background: 'var(--surface-0)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: 8,
+            background: 'var(--accent)', color: '#fff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 13, fontWeight: 800,
+          }}>
+            {project?.key?.slice(0,2) || '??'}
+          </div>
           <div>
-            <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{project?.name || 'Project'}</h2>
-            <span className="text-[10px] font-mono" style={{ color: 'var(--text-tertiary)' }}>{project?.key}</span>
+            <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-0)', margin: 0 }}>{project?.name || 'Project'}</h2>
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', letterSpacing: '0.02em' }}>{project?.key}</span>
           </div>
         </div>
         <div className="flex gap-2">
@@ -106,12 +118,26 @@ export default function ProjectPage() {
       </div>
 
       {/* Tab bar */}
-      <div className="flex gap-1 px-6 py-1 border-b" style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-secondary)' }}>
+      <div style={{
+        display: 'flex', gap: 4,
+        padding: '0 24px',
+        borderBottom: '1px solid var(--border-0)',
+        background: 'var(--surface-0)',
+      }}>
         {tabs.map(t => (
           <NavLink key={t.path} to={`${basePath}/${t.path}`}
-            className={({ isActive }) => `nav-item text-xs ${isActive ? 'active' : ''}`}
+            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+            style={({ isActive }) => ({
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '12px 16px',
+              fontSize: 14, fontWeight: 600,
+              color: isActive ? 'var(--text-0)' : 'var(--text-3)',
+              borderBottom: isActive ? '2px solid var(--accent)' : '2px solid transparent',
+              textDecoration: 'none',
+              transition: 'all 0.15s ease',
+            })}
           >
-            <t.icon size={13} /> {t.label}
+            <t.icon size={16} /> {t.label}
           </NavLink>
         ))}
       </div>

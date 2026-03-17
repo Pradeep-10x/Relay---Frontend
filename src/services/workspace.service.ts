@@ -29,6 +29,10 @@ export const workspaceService = {
     await apiClient.delete(`/workspace/${wsId}/remove-member`, { data: { userId } })
   },
 
+  async changeMemberRole(wsId: string, userId: string, role: WorkspaceRole): Promise<void> {
+    await apiClient.patch(`/workspace/${wsId}/change-role`, { userId, role })
+  },
+
   async generateInvite(wsId: string, role: WorkspaceRole = 'MEMBER'): Promise<WorkspaceInvite> {
     const { data } = await apiClient.post(`/workspace/${wsId}/invite`, { role })
     return data
